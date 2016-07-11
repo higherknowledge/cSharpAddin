@@ -63,7 +63,7 @@ namespace HigherKnowledge_addin
 
         public void onViewButton(Office.IRibbonControl control)
         {
-            Set s = new Set();
+            
             if (response == null)
                 fetch();
             string[] val = response.Split('|');
@@ -125,7 +125,7 @@ namespace HigherKnowledge_addin
                 string[] val = response.Split('|');
                 reply.Subject = val[0];
                 reply.CC = val[1];
-                reply.HTMLBody = val[2];
+                reply.Body = val[2];
                 reply.Send(); 
             }
         }
@@ -172,6 +172,8 @@ namespace HigherKnowledge_addin
             try
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(raw + path + ThisAddIn.User);
+                //please comment the above line and uncomment the below line to test this
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(raw + path + "hkaddin@gmail.com");
                 var res = (HttpWebResponse)request.GetResponse();
                 var stream = res.GetResponseStream();
                 StreamReader reader = new StreamReader(stream);
