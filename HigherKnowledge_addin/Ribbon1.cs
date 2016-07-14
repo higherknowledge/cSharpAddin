@@ -1,4 +1,4 @@
-﻿using HigherKnowledge_addin.Properties;
+using HigherKnowledge_addin.Properties;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -11,6 +11,7 @@ using System.Text;
 using System.Windows.Forms;
 using Office = Microsoft.Office.Core;
 using Outlook = Microsoft.Office.Interop.Outlook;
+using System.Runtime.Serialization.Json;
 
 // TODO:  Follow these steps to enable the Ribbon (XML) item:
 
@@ -41,8 +42,8 @@ namespace HigherKnowledge_addin
         public Ribbon1()
         {
         }
-
-        string response = null;
+        
+        Template template = null;
 
         #region IRibbonExtensibility Members
 
@@ -63,12 +64,19 @@ namespace HigherKnowledge_addin
 
         public void onViewButton(Office.IRibbonControl control)
         {
-            
-            if (response == null)
-                fetch();
-            string[] val = response.Split('|');
-            string dis = "Subject : \n\n" + val[0] + "\n\nCC :\n\n" + val[1] + "\n\nBody :\n\n" + val[2];
-            MessageBox.Show(dis);
+           
+            try
+            {
+                if (template == null)
+                    fetch();
+                
+                string dis = "Subject : \n\n" + template.subject + "\n\nCC :\n\n" + template.cc + "\n\nBody :\n\n" + getBody();
+                MessageBox.Show(dis);
+            }
+            catch(NullReferenceException e)
+            {
+                MessageBox.Show("Could not load the template");
+            }
         }
 
         public void OnReplyButton(Office.IRibbonControl control)
@@ -83,7 +91,7 @@ namespace HigherKnowledge_addin
                     if(child is Outlook.MailItem)
                     {
                         var mail = child as Outlook.MailItem;
-                        showDialog(mail);
+                        send(mail);
                         break;
                     }
                 }
@@ -95,7 +103,7 @@ namespace HigherKnowledge_addin
                 if (ins.CurrentItem is Outlook.MailItem)
                 {
                     var mail = ins.CurrentItem as Outlook.MailItem;
-                    showDialog(mail);
+                    send(mail);
                     ins.Close(Outlook.OlInspectorClose.olSave);
                 }
 
@@ -108,25 +116,32 @@ namespace HigherKnowledge_addin
             }
         }
 
-        private void showDialog(Outlook.MailItem mail)
+        private void send(Outlook.MailItem mail)
         {
             string name = mail.Sender.Address;
-            DialogResult result = MessageBox.Show("Send HK response to " + name,"Confirmation", MessageBoxButtons.YesNo);
-            if (result == DialogResult.Yes)
+            
+            //DialogResult result = MessageBox.Show("Send HK response to " + name,"Confirmation...", MessageBoxButtons.YesNo);
+            //if (result == DialogResult.Yes)
             {
-                MessageBox.Show(ThisAddIn.User);
+               // MessageBox.Show(ThisAddIn.User);
                 Outlook.MailItem reply = mail.Reply();
-
-                 if (response == null)
+                try
                 {
-                    fetch();
-                }
+                   if (template == null)
+                    {
+                        fetch();
+                    }
 
-                string[] val = response.Split('|');
-                reply.Subject = val[0];
-                reply.CC = val[1];
-                reply.Body = val[2];
-                reply.Send(); 
+                    reply.CC = template.cc;
+                    
+                    reply.HTMLBody = getBody();
+                    reply.Subject = template.subject;
+                    reply.Display();
+                }
+                catch(NullReferenceException)
+                {
+                    MessageBox.Show("Could not Reply");
+                }
             }
         }
         
@@ -168,25 +183,37 @@ namespace HigherKnowledge_addin
         {
             string raw = "https://raw.githubusercontent.com/";
             string path = "abhivijay96/Templates/master/";
-
+            
             try
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(raw + path + ThisAddIn.User);
-                //please comment the above line and uncomment the below line to test this
-                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(raw + path + "hkaddin@gmail.com");
                 var res = (HttpWebResponse)request.GetResponse();
                 var stream = res.GetResponseStream();
                 StreamReader reader = new StreamReader(stream);
-                response = reader.ReadToEnd();
-                reader.Close();
+                //string response = reader.ReadToEnd();
+                ////reader.Close();
+                //MessageBox.Show(response);
+                ////stream.Close();
+                //response.Replace('\n', '|');
+                DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(Template));
+                object obj = ser.ReadObject(stream);
+                template = obj as Template;
                 stream.Close();
             }
 
             catch (Exception e)
             {
-                MessageBox.Show("Unable to fetch the template");
+                MessageBox.Show("Unable to fetch the template..." + e);
             }
         } 
+
+        public string getBody()
+        {
+            string temp = "";
+            foreach (var s in template.body)
+                temp += s + "<br/><br/>";
+            return temp;
+        }
         #endregion
     }
 }
